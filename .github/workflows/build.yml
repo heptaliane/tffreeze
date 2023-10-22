@@ -1,0 +1,45 @@
+name: Build binary
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runson }}
+
+    strategy:
+      matrix:
+        include:
+          - {os: "linux", arch: "386", runson: "ubuntu-latest"}
+          - {os: "linux", arch: "amd64", runson: "ubuntu-latest"}
+          - {os: "linux", arch: "arm", runson: "ubuntu-latest"}
+          - {os: "linux", arch: "arm64", runson: "ubuntu-latest"}
+          - {os: "windows", arch: "386", runson: "ubuntu-latest"}
+          - {os: "windows", arch: "amd64", runson: "ubuntu-latest"}
+          - {os: "darwin", arch: "amd64", runson: "macos-latest"}
+          - {os: "darwin", arch: "arm64", runson: "macos-latest"}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup golang environment
+        uses: actions/setup-go@v4
+        with:
+          go-version: '>=1.20.0'
+
+      - name: Build tffreeze
+        run: go build -o tffreeze-${{ matrix.os }}-${{ matrix.arch }} cmd/tffreeze.go
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        shell: bash
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: tffreeze-${{ matrix.os }}-${{ matrix.arch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
