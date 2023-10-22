@@ -47,7 +47,7 @@ cpus          = 2
 
 tags = ["foo", "bar"]
 
-labels = {
+disk_labels = {
     baz = "qux"
 }
 ```
