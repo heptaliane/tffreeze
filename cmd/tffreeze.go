@@ -116,9 +116,15 @@ func parseCommandLineArgument() CommandLineArgument {
 func main() {
 	args := parseCommandLineArgument()
 
-	values, diags := loadTfvars(args.varfile)
-	if diags.HasErrors() {
-		log.Fatal(diags.Error())
+	values := make(map[string]cty.Value)
+	if _, err := os.Stat(args.varfile); err == nil {
+		filevals, diags := loadTfvars(args.varfile)
+		if diags.HasErrors() {
+			log.Fatal(diags.Error())
+		}
+		for key, value := range filevals {
+			values[key] = value
+		}
 	}
 	ctx := hcl.EvalContext{
 		Variables: map[string]cty.Value{
