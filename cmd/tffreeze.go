@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+    "reflect"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -53,6 +54,20 @@ func loadTfvars(path string) (map[string]cty.Value, hcl.Diagnostics) {
 	}
 
 	return values, diags
+}
+
+func substituteExpression(expr hclsyntax.Expression, ctx *hcl.EvalContext) (*hclsyntax.Expression, hcl.Diagnostics) {
+	value, diags := expr.Value(ctx)
+	if diags.HasErrors() {
+		return nil, diags
+	}
+
+	var subExpr hclsyntax.Expression
+	subExpr = &hclsyntax.LiteralValueExpr{
+		Val:      value,
+		SrcRange: expr.StartRange(),
+	}
+	return &subExpr, diags
 }
 
 func substituteVariables(body *hclsyntax.Body, subBody *hclwrite.Body, ctx *hcl.EvalContext) hcl.Diagnostics {
