@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-    "reflect"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -56,8 +55,8 @@ func loadTfvars(path string) (map[string]cty.Value, hcl.Diagnostics) {
 	return values, diags
 }
 
-func substituteExpression(expr hclsyntax.Expression, ctx *hcl.EvalContext) (*hclsyntax.Expression, hcl.Diagnostics) {
-	value, diags := expr.Value(ctx)
+func substituteExpression(expr *hclsyntax.Expression, ctx *hcl.EvalContext) (*hclsyntax.Expression, hcl.Diagnostics) {
+	value, diags := (*expr).Value(ctx)
 	if diags.HasErrors() {
 		return nil, diags
 	}
@@ -65,16 +64,41 @@ func substituteExpression(expr hclsyntax.Expression, ctx *hcl.EvalContext) (*hcl
 	var subExpr hclsyntax.Expression
 	subExpr = &hclsyntax.LiteralValueExpr{
 		Val:      value,
-		SrcRange: expr.StartRange(),
+		SrcRange: (*expr).StartRange(),
 	}
 	return &subExpr, diags
+}
+
+func substituteExpressionRecursive(expr *hclsyntax.Expression, ctx *hcl.EvalContext) (cty.Value, hcl.Diagnostics) {
+	stack := []*hclsyntax.Expression{expr}
+
+	for len(stack) > 0 {
+		cursor := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if funcCursor, ok := (*cursor).(*hclsyntax.FunctionCallExpr); ok {
+			args := []hclsyntax.Expression{}
+
+			for _, arg := range funcCursor.Args {
+				subArg, subDiag := substituteExpression(&arg, ctx)
+				if subDiag.HasErrors() {
+					stack = append(stack, &arg)
+					args = append(args, arg)
+				} else {
+					args = append(args, *subArg)
+				}
+			}
+			(*funcCursor).Args = args
+		}
+	}
+	return (*expr).Value(ctx)
 }
 
 func substituteVariables(body *hclsyntax.Body, subBody *hclwrite.Body, ctx *hcl.EvalContext) hcl.Diagnostics {
 	diags := hcl.Diagnostics{}
 
 	for name, attr := range body.Attributes {
-		value, attrDiags := attr.Expr.Value(ctx)
+		value, attrDiags := substituteExpressionRecursive(&attr.Expr, ctx)
 		if !attrDiags.HasErrors() {
 			diags = append(diags, attrDiags...)
 			subBody.SetAttributeValue(name, value)
